@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>MediaServer — Тёмный кинозал</title>
+    <meta name="description" content="MediaServer — фильмы, сериалы и аниме в одном месте.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/favicon.svg">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+    <link rel="stylesheet" href="/static/css/app.__APP__.css">
+    <link rel="stylesheet" href="/static/css/tailwind.__TW__.css">
+</head>
+
+<body class="antialiased">
+    <div id="bgGlow" aria-hidden="true"></div>
+    <div id="toastHost" class="fixed z-[80] bottom-4 right-4 flex flex-col gap-2 items-end" aria-live="polite"></div>
+    <input type="file" id="avatarFileInput" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden"
+        onchange="uploadProfileImage('avatar', this)">
+    <input type="file" id="bannerFileInput" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden"
+        onchange="uploadProfileImage('banner', this)">
+    <button id="scrollTopBtn" aria-label="Наверх">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="18 15 12 9 6 15" />
+        </svg>
+    </button>
+
+    <!-- ===================== ШЛЮЗ ДОСТУПА (нельзя закрыть) ===================== -->
+    <div id="accessGate" class="hidden">
+        <div class="gate-card">
+            <div class="flex items-center gap-2 mb-1">
+                <span
+                    style="width:34px;height:34px;border-radius:10px;background:rgba(225,29,72,.15);border:1px solid rgba(225,29,72,.4);display:flex;align-items:center;justify-content:center;color:#A67CFF">
+                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="18" rx="2" />
+                        <path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5" />
+                    </svg>
+                </span>
+                <span class="font-display uppercase tracking-wide text-lg">Media<span
+                        style="color:#A67CFF">Server</span></span>
+            </div>
+            <p id="gateMsg" class="text-muted text-sm mb-4"></p>
+            <div id="gateTabs" class="flex gap-1 p-1 rounded-xl bg-surface2 border border-border mb-4">
+                <button type="button" id="gateTabReg" onclick="setGateMode('register')"
+                    class="flex-1 h-9 rounded-lg text-sm font-medium transition">Регистрация</button>
+                <button type="button" id="gateTabLog" onclick="setGateMode('login')"
+                    class="flex-1 h-9 rounded-lg text-sm font-medium transition">Вход</button>
+            </div>
+            <form id="gateForm" class="space-y-3">
+                <input id="gateLogin" required minlength="3" maxlength="32" autocomplete="username" placeholder="Логин"
+                    class="field-dark w-full h-11 rounded-xl px-3.5 text-sm focus:outline-none">
+                <input id="gatePass" required minlength="8" type="password" autocomplete="current-password"
+                    placeholder="Пароль" class="field-dark w-full h-11 rounded-xl px-3.5 text-sm focus:outline-none">
+                <input id="gateCode" required placeholder="Код доступа"
+                    class="field-dark w-full h-11 rounded-xl px-3.5 text-sm focus:outline-none">
+                <p id="gateError"
+                    class="hidden text-xs text-marqueeHi bg-marquee/10 border border-marquee/30 rounded-lg px-3 py-2">
+                </p>
+                <button id="gateSubmit" type="submit"
+                    class="btn-primary w-full h-11 rounded-xl text-sm">Продолжить</button>
+            </form>
+            <p class="text-[10px] text-faint mt-3 text-center">Логин: 3–32 символа (латиница, цифры, «_», «-») ·
+                пароль: от 8 символов, A–Z, a–z и цифра</p>
+        </div>
+    </div>
+
+    <!-- ===================== HEADER ===================== -->
+    <header class="app-header fixed top-0 inset-x-0 z-40">
+        <div
+            class="h-16 grid items-center gap-2 md:gap-3 px-4 md:px-6 lg:px-10 max-w-[1600px] mx-auto grid-cols-[auto_minmax(0,1fr)_auto] md:grid-cols-3">
+
+            <!-- ЛЕВАЯ ЧАСТЬ: бургер + лого + навигация -->
+            <div class="hdr-left flex items-center gap-2 md:gap-3 min-w-0 justify-self-start">
+                <button id="btnDrawer" class="md:hidden aon-icobtn" aria-label="Открыть меню" aria-controls="sidebar"
+                    aria-expanded="false">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round">
+                        <path d="M4 5h16" />
+                        <path d="M4 12h16" />
+                        <path d="M4 19h16" />
+                    </svg>
+                </button>
+
+                <a href="/" onclick="goHome();return false;" class="flex items-center gap-2.5 shrink-0 group"
+                    aria-label="MediaServer — на главную">
+                    <span
+                        class="w-9 h-9 rounded-xl bg-marquee/15 border border-marquee/40 flex items-center justify-center text-marqueeHi group-hover:bg-marquee/25 transition shrink-0 drop-shadow-[0_0_8px_rgba(124,77,255,0.5)]">
+                        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="18" rx="2" />
+                            <path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5" />
+                        </svg>
+                    </span>
+                    <span
+                        class="brand-name hidden lg:block text-xl font-bold font-display tracking-wide whitespace-nowrap leading-none bg-gradient-to-r from-white via-violet-300 via-fuchsia-400 to-violet-400 bg-clip-text text-transparent">MediaServer</span>
+                </a>
+
+                <nav class="hidden md:flex items-center gap-1 shrink-0" aria-label="Основная навигация">
+                    <!-- Каталог: дропдаун -->
+                    <div class="relative" id="topCatWrap">
+                        <button type="button" id="topCatBtn" onclick="topCatClick()"
+                            class="aon-icobtn w-auto px-2" aria-label="Каталог" title="Каталог" aria-haspopup="true"
+                            aria-expanded="false">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+                                <circle cx="12" cy="12" r="10" />
+                            </svg>
+                            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m6 9 6 6 6-6" />
+                            </svg>
+                        </button>
+                        <div id="topCatMenu" class="aon-dd hidden">
+                            <a href="/catalog" onclick="closeTopDds(); openCatalog();return false;" class="aon-item"
+                                data-nav="catalog">
+                                <span class="aon-icobox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path
+                                            d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+                                        <circle cx="12" cy="12" r="10" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0"><span class="ttl">Каталог</span><span class="sub"
+                                        style="display:block">Все тайтлы
+                                        с фильтрами и поиском</span></span>
+                            </a>
+                            <div class="h-px bg-white/[.06] my-1 mx-1.5"></div>
+                            <a href="/anime" onclick="closeTopDds(); openAnime();return false;" class="aon-item"
+                                data-nav="anime">
+                                <span class="aon-icobox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <path d="M21.39 12.06a10 10 0 1 1-8.45-8.45" />
+                                        <path d="M21.39 12.06 12.34 12.66 21.39 12.06z" />
+                                        <path d="m12.34 12.66 9.05-.6-6.44-6.44a1 1 0 0 0-1.71.55z" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0"><span class="ttl">Аниме</span><span class="sub"
+                                        style="display:block">Подборки и
+                                        расписание выхода</span></span>
+                            </a>
+                            <div class="h-px bg-white/[.06] my-1 mx-1.5"></div>
+                            <a href="/random" onclick="closeTopDds(); openRandomModal();return false;" class="aon-item">
+                                <span class="aon-icobox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                        stroke-linejoin="round">
+                                        <rect width="12" height="12" x="2" y="10" rx="2" ry="2" />
+                                        <path
+                                            d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6" />
+                                        <path d="M6 18h.01" />
+                                        <path d="M10 14h.01" />
+                                        <path d="M15 6h.01" />
+                                        <path d="M18 9h.01" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0"><span class="ttl">Случайное</span><span class="sub"
+                                        style="display:block">Случайный
+                                        тайтл на пробу</span></span>
+                            </a>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+
+            <!-- ЦЕНТР: ПОИСК (по центру страницы за счёт равных колонок сетки) -->
+            <div id="searchWrap" class="relative min-w-0 w-full max-w-[520px] justify-self-center">
+                <div class="relative group/s">
+                    <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-violet-300 transition-colors duration-200"
+                        width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round">
+                        <path d="m21 21-4.34-4.34" />
+                        <circle cx="11" cy="11" r="8" />
+                    </svg>
+                    <input id="searchInput" type="search" autocomplete="off"
+                        placeholder="Поиск фильмов, сериалов, аниме…" class="aon-search"
+                        aria-label="Поиск фильмов, сериалов и аниме" role="combobox" aria-expanded="false"
+                        aria-controls="searchDropdown" aria-autocomplete="list">
+                    <button id="searchClearBtn" onclick="clearSearch()"
+                        class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-white/10 z-10"
+                        aria-label="Очистить поиск">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.4" stroke-linecap="round">
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                    </button>
+                    <kbd class="aon-kbd hidden xl:inline-flex" aria-hidden="true">Ctrl<span
+                            class="text-white/20">+</span>K</kbd>
+                </div>
+                <div id="searchDropdown" role="listbox"
+                    class="hidden absolute mt-2 left-0 right-0 max-h-[70vh] overflow-y-auto rounded-2xl modal-panel z-50 p-2">
+                </div>
+            </div>
+
+            <!-- ПРАВАЯ ЧАСТЬ: мой список + аккаунт -->
+            <div class="hdr-right flex items-center gap-1.5 justify-self-end shrink-0">
+                <a href="/list" onclick="openList();return false;" class="aon-icobtn" data-nav="list"
+                    aria-label="Мой список" data-ttip="Мой список">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 5H3" />
+                        <path d="M10 12H3" />
+                        <path d="M10 19H3" />
+                        <path
+                            d="M15 12.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z" />
+                    </svg>
+                </a>
+                <span class="aon-divider" aria-hidden="true"></span>
+                <button id="btnLoginHeader" type="button" class="hdr-login" onclick="openAccountModal()">Войти</button>
+                <div class="relative" id="acctWrap">
+                    <button id="btnAccount" onclick="toggleTopDd('acctMenu', this)" class="aon-acct hidden"
+                        aria-label="Аккаунт" aria-haspopup="true" aria-expanded="false">
+                        <span class="aon-avatar">
+                            <img class="js-av-img hidden" alt="">
+                            <span class="js-av-init hidden font-display"></span>
+                            <svg class="av-guest" width="15" height="15" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                        </span>
+                        <svg class="chev text-zinc-500" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m6 9 6 6 6-6" />
+                        </svg>
+                    </button>
+
+                    <!-- меню профиля: без дублей библиотеки -->
+                    <!-- меню профиля (стиль animeon) -->
+                    <div id="acctMenu" class="aon-dd aon-dd-right hidden" role="menu">
+                        <div class="acct-head">
+                            <div class="flex items-center gap-3.5">
+                                <span class="aon-avatar acct-ava">
+                                    <img class="js-av-img hidden" alt="">
+                                    <span class="js-av-init hidden font-display"></span>
+                                    <svg class="av-guest" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                </span>
+                                <div class="flex-1 min-w-0">
+                                    <p class="acct-name" id="acctMenuName">Гость</p>
+                                    <p class="acct-sub" id="acctMenuStatus">Локальный профиль</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2 mt-4">
+                                <div class="acct-stat"><span class="k">Время</span><span class="v" id="acctStatTime">—</span></div>
+                                <div class="acct-stat"><span class="k">Оценки</span><span class="v" id="acctStatRatings">0</span></div>
+                                <div class="acct-stat"><span class="k">Просмотрено</span><span class="v" id="acctStatWatched">0</span></div>
+                            </div>
+                        </div>
+                        <div class="acct-list">
+                            <a href="/profile" onclick="closeTopDds(); openProfile();return false;" class="acct-item" data-nav="profile">
+                                <span class="acct-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0">Мой профиль</span>
+                            </a>
+                            <a href="/list" onclick="closeTopDds(); openList();return false;" class="acct-item" data-nav="list">
+                                <span class="acct-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 5H3" />
+                                        <path d="M10 12H3" />
+                                        <path d="M10 19H3" />
+                                        <path
+                                            d="M15 12.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0">Мой список</span>
+                            </a>
+                            <a id="acctSettingsItem" href="/settings" data-nav="settings" onclick="closeTopDds(); openSettings();return false;"
+                                class="acct-item hidden">
+                                <span class="acct-ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+                                        <circle cx="12" cy="12" r="3" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0">Настройки</span>
+                            </a>
+                            <a id="acctLoginItem" href="#" onclick="closeTopDds(); openAccountModal();return false;"
+                                class="acct-item acct-item--violet hidden">
+                                <span class="acct-ic acct-ic--violet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                                        <path d="m10 17 5-5-5-5" />
+                                        <path d="M15 12H3" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0">Войти в аккаунт</span>
+                            </a>
+                            <div class="acct-sep"></div>
+                            <button id="acctLogoutItem" type="button" class="acct-item acct-item--danger hidden"
+                                onclick="confirmLogout();">
+                                <span class="acct-ic acct-ic--danger"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m16 17 5-5-5-5" />
+                                        <path d="M21 12H9" />
+                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                                    </svg></span>
+                                <span class="flex-1 min-w-0">Выйти</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===================== НИЖНЯЯ МОБИЛЬНАЯ НАВИГАЦИЯ ===================== -->
+    <nav id="bottomNav" class="md:hidden" aria-label="Быстрая навигация">
+        <button type="button" data-bnav="home" onclick="goHome()" aria-label="Главная">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span>Главная</span>
+        </button>
+        <button type="button" data-bnav="catalog" onclick="openCatalog()" aria-label="Каталог">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+                <circle cx="12" cy="12" r="10" />
+            </svg>
+            <span>Каталог</span>
+        </button>
+        <button type="button" onclick="openSearchModal()" aria-label="Поиск">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round">
+                <path d="m21 21-4.34-4.34" />
+                <circle cx="11" cy="11" r="8" />
+            </svg>
+            <span>Поиск</span>
+        </button>
+        <button type="button" data-bnav="anime" onclick="openAnime()" aria-label="Аниме">
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.39 12.06a10 10 0 1 1-8.45-8.45" />
+                <path d="M21.39 12.06 12.34 12.66 21.39 12.06z" />
+                <path d="m12.34 12.66 9.05-.6-6.44-6.44a1 1 0 0 0-1.71.55z" />
+            </svg>
+            <span>Аниме</span>
+        </button>
+        <button type="button" onclick="openDrawer()" aria-label="Меню профиля">
+            <span class="aon-avatar bn-ava" aria-hidden="true">
+                <img class="js-av-img hidden" alt="">
+                <span class="js-av-init hidden font-display"></span>
+                <svg class="av-guest" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+            </span>
+            <span>Меню</span>
+        </button>
+        </nav>
+
+    <!-- ===================== МОБИЛЬНОЕ МЕНЮ ===================== -->
+    <div id="drawerOverlay" onclick="closeDrawer()" class="hidden fixed inset-0 bg-black/60 z-40 md:hidden"></div>
+    <aside id="sidebar" data-drawer
+        class="fixed z-50 top-0 left-0 h-full w-full sm:w-80 bg-surface border-r-0 sm:border-r border-border pt-5 pb-6 px-4 flex flex-col gap-6 overflow-y-auto -translate-x-full md:hidden">
+        <button onclick="closeDrawer()"
+            class="absolute top-4 right-4 w-9 h-9 rounded-lg btn-ghost flex items-center justify-center"
+            aria-label="Закрыть меню">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                stroke-linecap="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+        </button>
+
+        <nav class="flex flex-col gap-1" aria-label="Основная навигация">
+            <a href="/" onclick="goHome();return false;" class="side-link" data-nav="home">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+                Главная
+            </a>
+            <a href="/catalog" onclick="openCatalog();return false;" class="side-link" data-nav="catalog">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                </svg>
+                Каталог
+            </a>
+            <a href="/anime" onclick="openAnime();return false;" class="side-link" data-nav="anime">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <path d="m10 9 5 3-5 3z" />
+                </svg>
+                Аниме
+            </a>
+            <a href="/random" onclick="openRandomModal();return false;" class="side-link">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path
+                        d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z" />
+                    <path d="m14 7 3 3" />
+                    <path d="M5 6v4M19 14v4M10 2v2M7 8H3M21 16h-4M11 3H9" />
+                </svg>
+                Случайное
+            </a>
+            <a href="/list" onclick="openList();return false;" class="side-link" data-nav="list">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 5H3" />
+                    <path d="M10 12H3" />
+                    <path d="M10 19H3" />
+                    <path
+                        d="M15 12.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z" />
+                </svg>
+                Мой список
+            </a>
+            <a href="/profile" onclick="openProfile();return false;" class="side-link" data-nav="profile">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                Профиль
+            </a>
+            <a href="/settings" onclick="openSettings();return false;" class="side-link" data-nav="settings">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path
+                        d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+                    <circle cx="12" cy="12" r="3" />
+                </svg>
+                Настройки
+            </a>
+        </nav>
+
+        <div>
+            <p class="px-3 mb-2 text-[11px] font-display uppercase tracking-widest text-faint">Библиотека</p>
+            <nav class="flex flex-col gap-1" aria-label="Библиотека">
+                <a href="/favorites" onclick="openLibrary('favorites');return false;" class="side-link"
+                    data-nav="favorites">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" />
+                    </svg>
+                    <span class="flex-1">Избранное</span>
+                    <span class="text-xs text-faint cnt-favorites"></span>
+                </a>
+                <a href="/watching" onclick="openLibrary('watching');return false;" class="side-link"
+                    data-nav="watching">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <polygon points="10 8 16 12 10 16 10 8" />
+                    </svg>
+                    <span class="flex-1">Смотрю</span>
+                    <span class="text-xs text-faint cnt-watching"></span>
+                </a>
+                <a href="/planned" onclick="openLibrary('planned');return false;" class="side-link" data-nav="planned">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span class="flex-1">Буду смотреть</span>
+                    <span class="text-xs text-faint cnt-planned"></span>
+                </a>
+                <a href="/watched" onclick="openLibrary('watched');return false;" class="side-link" data-nav="watched">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    <span class="flex-1">Просмотрено</span>
+                    <span class="text-xs text-faint cnt-watched"></span>
+                </a>
+                <a href="/onhold" onclick="openLibrary('onhold');return false;" class="side-link" data-nav="onhold">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="10" x2="10" y1="15" y2="9" />
+                        <line x1="14" x2="14" y1="15" y2="9" />
+                    </svg>
+                    <span class="flex-1">Отложено</span>
+                    <span class="text-xs text-faint cnt-onhold"></span>
+                </a>
+                <a href="/dropped" onclick="openLibrary('dropped');return false;" class="side-link" data-nav="dropped">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="m15 9-6 6" />
+                        <path d="m9 9 6 6" />
+                    </svg>
+                    <span class="flex-1">Брошено</span>
+                    <span class="text-xs text-faint cnt-dropped"></span>
+                </a>
+                <a href="/history" onclick="openLibrary('history');return false;" class="side-link" data-nav="history">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span class="flex-1">История</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="mt-auto">
+            <button onclick="openAccountModal()"
+                class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl btn-ghost text-left">
+                <span id="sideAvatarInit"
+                    class="hidden w-8 h-8 rounded-full bg-marquee/20 border border-marquee/40 items-center justify-center text-xs font-bold font-display text-marqueeHi"></span>
+                <svg id="sideIconGuest" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                <span class="text-sm font-medium" id="sideAccountLabel">Вход в аккаунт</span>
+            </button>
+            <button id="sideLogoutBtn" type="button"
+                class="side-logout hidden w-full flex items-center gap-3 px-3 py-2.5 rounded-xl btn-ghost text-left mt-2"
+                onclick="confirmLogout()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m16 17 5-5-5-5" />
+                    <path d="M21 12H9" />
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                </svg>
+                <span class="text-sm font-medium">Выйти</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ===================== MAIN ===================== -->
+    <main class="pt-16 min-h-screen">
+
+        <!-- HOME VIEW -->
+        <div id="homeView">
+            <div id="heroSkeleton" class="h-[46vh] min-h-[320px] max-h-[560px] skeleton relative overflow-hidden"></div>
+            <section id="hero" class="hidden relative h-[46vh] min-h-[340px] max-h-[560px] overflow-hidden">
+                <img id="heroImg" src="" alt="" class="absolute inset-0 w-full h-full object-cover object-top scale-105">
+                <div class="absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-bg/10"></div>
+                <div class="absolute inset-0 bg-gradient-to-r from-bg/90 via-bg/10 to-transparent"></div>
+                <div class="hero-fade"></div>
+                <div class="hero-bottom-blur">
+                </div>
+                <button id="heroPrev" class="hero-arrow hero-arrow--prev" type="button" aria-label="Предыдущий тайтл">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                </button>
+                <button id="heroNext" class="hero-arrow hero-arrow--next" type="button" aria-label="Следующий тайтл">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                </button>
+                <div class="absolute inset-x-0 bottom-0">
+                    <div class="px-4 md:px-6 lg:px-10 pb-10 md:pb-12 max-w-[1600px] mx-auto">
+                        <span
+                            class="inline-flex items-center gap-1.5 text-xs font-display uppercase tracking-widest text-goldHi mb-3">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2l2.4 7.2H22l-6 4.4 2.3 7.2L12 16.4 5.7 20.8 8 13.6l-6-4.4h7.6z" />
+                            </svg>
+                            Сейчас в тренде
+                        </span>
+                        <div class="max-w-3xl">
+                            <h1 id="heroTitle"
+                                class="font-display uppercase text-3xl sm:text-4xl md:text-5xl leading-[1.05] mb-3 text-ink hero-text">
+                            </h1>
+                            <div id="heroMeta" class="hero-meta hero-text"></div>
+                            <div class="marquee-rule marquee-rule-anim mb-4"></div>
+                            <p id="heroDesc" class="text-muted text-sm md:text-base line-clamp-3 mb-5 max-w-xl hero-text"></p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button onclick="openHero()" class="btn-primary h-11 px-6 rounded-xl flex items-center gap-2 text-sm">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="6 3 20 12 6 21 6 3" />
+                                </svg>
+                                Смотреть
+                            </button>
+                            <button id="heroFavBtn" onclick="heroToggleFavorite()"
+                                class="btn-ghost h-11 px-5 rounded-xl flex items-center gap-2 text-sm" aria-label="В избранное">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path
+                                        d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" />
+                                </svg>
+                                <span>В избранное</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="heroDots" class="hero-dots" aria-label="Тренды"></div>
+            </section>
+            
+            <div id="heroSeam" aria-hidden="true"></div>
+            
+            <div id="homeSections" class="px-4 md:px-6 lg:px-10 pt-10 md:pt-14 pb-16 max-w-[1600px] mx-auto space-y-9"></div>
+
+            <div id="homeError" class="hidden text-center py-24 px-4">
+                <p class="text-muted mb-4">Не удалось загрузить подборки. Проверьте соединение с сервером.</p>
+                <button onclick="loadHome(true)" class="btn-ghost px-5 py-2.5 rounded-xl text-sm">Повторить</button>
+            </div>
+        </div>
+
+        <!-- GRID VIEW (search results / library / catalog) -->
+        <div id="gridView" class="hidden px-4 md:px-6 lg:px-10 pt-6 pb-16 max-w-[1600px] mx-auto">
+            <nav id="gridCrumb" class="st-crumb" aria-label="Хлебные крошки"></nav>
+            <div class="page-head">
+                <div class="flex items-center gap-3">
+                    <span id="gridHeadIc" class="page-head-ic" aria-hidden="true"><svg width="16" height="16"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round">
+                            <path
+                                d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+                            <circle cx="12" cy="12" r="10" />
+                        </svg></span>
+                    <div class="min-w-0">
+                        <h2 id="gridTitle" class="page-head-title"></h2>
+                        <p id="gridSubtitle" class="page-head-sub"></p>
+                    </div>
+                </div>  
+            </div>
+
+            <!-- Каталог: двухколоночная раскладка — сайдбар фильтров + контент -->
+            <div id="catalogWrap">
+                <!-- мобильные кнопки: раскрыть фильтры / сбросить (только < 1024px и только в каталоге) -->
+                <div id="cfToggleRow" class="hidden">
+                    <button type="button" id="cfToggleBtn" class="cat-mob-btn" onclick="toggleCatalogFilters()"
+                        aria-expanded="false" aria-controls="catalogFilters">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" class="cat-mob-ic">
+                            <path d="M10 5H3" />
+                            <path d="M12 19H3" />
+                            <path d="M14 3v4" />
+                            <path d="M16 17v4" />
+                            <path d="M21 12h-9" />
+                            <path d="M21 19h-5" />
+                            <path d="M21 5h-7" />
+                            <path d="M8 10v4" />
+                            <path d="M8 12H3" />
+                        </svg>
+                        <span class="flex-1 text-left">Фильтры</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" class="chev">
+                            <path d="m6 9 6 6 6-6" />
+                        </svg>
+                    </button>
+                    <button type="button" class="cat-mob-reset" onclick="resetCatalogFilters()" aria-label="Сбросить фильтры"
+                        title="Сбросить фильтры">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                            <path d="M3 3v5h5" />
+                        </svg>
+                    </button>
+                </div>
+            
+                <!-- САЙДБАР ФИЛЬТРОВ -->
+                <aside id="catalogFilters" class="cat-side hidden">
+                    <div class="cat-side-head">
+                        <h2 class="cat-side-title">
+                            <span class="cat-side-ic">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M10 5H3" />
+                                    <path d="M12 19H3" />
+                                    <path d="M14 3v4" />
+                                    <path d="M16 17v4" />
+                                    <path d="M21 12h-9" />
+                                    <path d="M21 19h-5" />
+                                    <path d="M21 5h-7" />
+                                    <path d="M8 10v4" />
+                                    <path d="M8 12H3" />
+                                </svg>
+                            </span>
+                            Фильтры
+                        </h2>
+                        <button type="button" class="cat-reset-btn" onclick="resetCatalogFilters()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                            </svg>
+                            Сбросить
+                        </button>
+                    </div>
+            
+                    <div class="cat-search-wrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round">
+                            <path d="m21 21-4.34-4.34" />
+                            <circle cx="11" cy="11" r="8" />
+                        </svg>
+                        <input id="cfQuery" placeholder="Поиск по названию…" autocomplete="off">
+                    </div>
+            
+                    <div id="cfTypes" class="cat-chips">
+                        <button data-ct="" class="cat-chip cat-chip--violet is-active">Все</button>
+                        <button data-ct="movie" class="cat-chip cat-chip--blue">Фильмы</button>
+                        <button data-ct="series" class="cat-chip cat-chip--emerald">Сериалы</button>
+                        <button data-ct="anime" class="cat-chip cat-chip--orange">Аниме</button>
+                        <button data-ct="cartoon" class="cat-chip cat-chip--pink">Мульты</button>
+                    </div>
+            
+                    <div class="cat-side-sep"></div>
+            
+                    <div class="cat-side-block">
+                        <label class="cat-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path
+                                    d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+                                <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+                            </svg>
+                            Жанры
+                        </label>
+                        <div class="relative" id="cfGenreWrap">
+                            <button type="button" id="cfGenreBtn" onclick="toggleGenrePanel()" class="cat-select">
+                                <span id="cfGenreLabel">Все жанры</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round" class="chev">
+                                    <path d="m6 9 6 6 6-6" />
+                                </svg>
+                            </button>
+                            <div id="cfGenrePanel" class="cat-genre-pop hidden" role="dialog" aria-label="Выбор жанров">
+                                <div class="cgp-head">
+                                    <div class="cgp-search-wrap">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round">
+                                            <path d="m21 21-4.34-4.34" />
+                                            <circle cx="11" cy="11" r="8" />
+                                        </svg>
+                                        <input id="cfGenreSearch" type="text" placeholder="Поиск жанра…" autocomplete="off"
+                                            aria-label="Поиск жанра">
+                                    </div>
+                                </div>
+                                <div class="cgp-body">
+                                    <div id="cfGenreList" class="cat-genre-grid"></div>
+                                    <p id="cfGenreEmpty" class="cgp-empty hidden">Ничего не найдено</p>
+                                </div>
+                                <div class="cgp-foot">
+                                    <button type="button" id="cfGenreReset" class="cgp-reset" onclick="clearGenres()">Сбросить</button>
+                                    <button type="button" class="cgp-done" onclick="toggleGenrePanel()">Готово</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="cfGenreChips" class="flex flex-wrap items-center gap-1.5"></div>
+                    </div>
+            
+                    <div class="cat-side-block">
+                        <label class="cat-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M8 2v4" />
+                                <path d="M16 2v4" />
+                                <rect width="18" height="18" x="3" y="4" rx="2" />
+                                <path d="M3 10h18" />
+                            </svg>
+                            Год выхода
+                        </label>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <input id="cfYear1" type="number" min="1890" max="2030" placeholder="от" class="cat-input">
+                            <input id="cfYear2" type="number" min="1890" max="2030" placeholder="до" class="cat-input">
+                        </div>
+                    </div>
+            
+                    <div class="cat-side-block">
+                        <label class="cat-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6z" />
+                            </svg>
+                            Рейтинг
+                        </label>
+                        <select id="cfRating" class="hidden">
+                            <option value="0">любой</option>
+                            <option value="5">5+</option>
+                            <option value="6">6+</option>
+                            <option value="7">7+</option>
+                            <option value="8">8+</option>
+                        </select>
+                    </div>
+            
+                    <div class="cat-side-block">
+                        <label class="cat-label">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m3 16 4 4 4-4" />
+                                <path d="M7 20V4" />
+                                <path d="M11 4h10" />
+                                <path d="M11 8h7" />
+                                <path d="M11 12h4" />
+                            </svg>
+                            Сортировка
+                        </label>
+                        <select id="cfSort" class="hidden">
+                            <option value="pop">популярные</option>
+                            <option value="rating">по рейтингу</option>
+                            <option value="fresh">свежие</option>
+                        </select>
+                    </div>
+            
+                    <label class="cat-rich">
+                        <input id="cfRich" type="checkbox" class="accent-rose-600">
+                        <span>Только с постером</span>
+                    </label>
+                </aside>
+            
+                <!-- ПРАВАЯ КОЛОНКА: результаты -->
+                <div class="cat-content">
+                    <div id="personsGrid" class="hidden mb-7"></div>
+                    <div id="gridLoading" class="hidden"></div>
+                    <div id="gridEmpty" class="hidden text-center py-24 px-4">
+                        <p id="gridEmptyText" class="text-muted"></p>
+                    </div>
+                    <div id="gridGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    </div>
+                    <div id="catalogMoreWrap" class="hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ANIME VIEW -->
+        <div id="animeView" class="hidden px-4 md:px-6 lg:px-10 pt-8 md:pt-12 pb-16 max-w-[1600px] mx-auto">
+            <div class="page-head">
+                <div class="flex items-center gap-3">
+                    <span class="page-head-ic" aria-hidden="true"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.39 12.06a10 10 0 1 1-8.45-8.45" />
+                            <path d="M21.39 12.06 12.34 12.66 21.39 12.06z" />
+                            <path d="m12.34 12.66 9.05-.6-6.44-6.44a1 1 0 0 0-1.71.55z" />
+                        </svg></span>
+                    <div>
+                        <h2 class="page-head-title">Аниме</h2>
+                        <p id="animeSubtitle" class="page-head-sub"></p>
+                    </div>
+                </div>
+            </div>
+            <div class="seg-ctrl mb-7 md:mb-9" role="tablist" aria-label="Разделы аниме">
+                <button id="animeTabOverview" role="tab" aria-selected="true" onclick="setAnimeTab('overview')"
+                    class="seg-btn is-active">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z" />
+                        <circle cx="12" cy="12" r="10" />
+                    </svg>
+                    Обзор
+                </button>
+                <button id="animeTabSchedule" role="tab" aria-selected="false" onclick="setAnimeTab('schedule')"
+                    class="seg-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="18" height="18" x="3" y="4" rx="2" />
+                        <path d="M8 2v4M16 2v4M3 10h18" />
+                    </svg>
+                    Расписание
+                </button>
+            </div>
+            <div id="animeOverview"></div>
+            <div id="animeSchedule" class="hidden"></div>
+        </div>
+
+        <!-- TITLE VIEW -->
+        <div id="titleView" class="hidden">
+            <div id="titleModalBody" class="px-4 md:px-6 lg:px-10 pt-6 pb-16 max-w-[1600px] mx-auto"></div>
+        </div>
+        
+        <!-- STAFF VIEW -->
+        <div id="staffView" class="hidden px-4 md:px-6 lg:px-10 pt-6 pb-16 max-w-[1600px] mx-auto">
+            <div id="staffContent"></div>
+        </div>
+        
+        <!-- PROFILE VIEW -->
+        <div id="profileView" class="hidden px-4 md:px-6 lg:px-10 pt-6 pb-16 max-w-[1600px] mx-auto">
+            <div id="profileContent"></div>
+        </div>
+        
+        <!-- SETTINGS VIEW -->
+        <div id="settingsView" class="hidden px-4 md:px-6 lg:px-10 pt-6 pb-16 max-w-6xl mx-auto">
+            <div id="settingsContent"></div>  
+        </div>
+
+        <!-- LIST VIEW -->
+                <div id="listView" class="hidden px-4 md:px-6 lg:px-10 pt-6 pb-16 max-w-[1600px] mx-auto">
+                    <div class="page-head">
+                        <div class="flex items-center gap-3">
+                            <span class="page-head-ic" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 5H3" />
+                                    <path d="M10 12H3" />
+                                    <path d="M10 19H3" />
+                                    <path
+                                        d="M15 12.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z" />
+                                </svg></span>
+                            <div>
+                                <h2 class="page-head-title">Мой список</h2>
+                                <p class="page-head-sub">Отслеживайте прогресс просмотра — всё в одном месте</p>
+                            </div>
+                            <button type="button" onclick="randomFromList()" data-ttip="Случайный тайтл из вашего списка"
+                                class="ml-auto btn-ghost h-10 px-4 rounded-xl text-sm flex items-center gap-2 shrink-0">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <rect width="12" height="12" x="2" y="10" rx="2" />
+                                    <path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6" />
+                                    <path d="M6 18h.01" />
+                                    <path d="M10 14h.01" />
+                                    <path d="M15 6h.01" />
+                                    <path d="M18 9h.01" />
+                                </svg>
+                                <span class="hidden sm:inline">Случайное</span>
+                            </button>
+                        </div>              
+                    </div>
+            <!-- Поиск по списку (стиль animeon) -->
+            <div class="ls-search-card mb-4">
+                <div class="flex items-center gap-2">
+                    <div class="relative flex-1 min-w-0 group">
+                        <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-violet-400 transition-colors duration-200 pointer-events-none"
+                            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round">
+                            <path d="m21 21-4.34-4.34" />
+                            <circle cx="11" cy="11" r="8" />
+                        </svg>
+                        <input id="lsSearch" type="text" placeholder="Поиск по списку…" autocomplete="off" inputmode="search"
+                            class="ls-search-input" aria-label="Поиск по списку">
+                        <button id="lsSearchClear" onclick="clearLsSearch()"
+                            class="hidden absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center text-zinc-500 hover:text-zinc-200 hover:bg-white/10"
+                            aria-label="Очистить">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                                stroke-linecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Табы категорий «Моего списка» (рендерит JS) -->
+            <div class="mb-6 sm:mb-8 border-b border-white/[.06]">
+                <div id="listTabs" class="flex items-center gap-0.5 overflow-x-auto hide-scrollbar"></div>      </div>
+
+            <div id="listGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4"></div>
+            <div id="listMoreWrap" class="hidden"></div>
+            <div id="listEmpty" class="hidden text-center py-24 px-4">
+                <p id="listEmptyText" class="text-muted"></p>
+            </div>
+
+            <!-- История просмотров -->
+            <div id="lsHistorySection" class="hidden mt-14 pt-10 border-t border-white/[.06]">
+                <div class="flex items-center justify-between mb-6 gap-3">
+                    <div class="flex items-center gap-3">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9a9aa4" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                            <path d="M3 3v5h5" />
+                            <path d="M12 7v5l4 2" />
+                        </svg>
+                        <h2 class="text-lg sm:text-xl font-bold">История просмотров</h2>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-zinc-600 font-medium" id="lsHistoryCount"></span>
+                        <button type="button" onclick="clearAllHistory()"
+                            class="ls-ghost-danger h-8 px-2.5 rounded-[10px] text-xs font-medium flex items-center gap-1.5"
+                            title="Очистить историю">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10 11v6" />
+                                <path d="M14 11v6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                            Очистить
+                        </button>
+                    </div>
+                </div>
+                <div id="lsHistoryGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-4"></div>
+                <div id="lsHistoryMoreWrap" class="hidden"></div>
+                <div id="lsHistoryEmpty" class="hidden text-center py-12">
+                    <p class="text-muted text-sm">Вы ещё не начинали смотреть.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ===================== FOOTER ===================== -->
+    <footer class="footer-glow border-t border-border">
+        <div class="f-orb f-orb--violet" aria-hidden="true"></div>
+        <div class="f-orb f-orb--fuchsia" aria-hidden="true"></div>
+        <div class="relative z-10 px-4 md:px-6 lg:px-10 max-w-[1600px] mx-auto py-12">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+
+                <!-- О сайте -->
+                <div class="space-y-4">
+                    <a href="/" onclick="goHome();return false;" class="flex items-center gap-2.5">
+                        <span
+                            class="w-9 h-9 rounded-xl bg-marquee/15 border border-marquee/40 flex items-center justify-center text-marqueeHi shrink-0">
+                            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="18" rx="2" />
+                                <path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5" />
+                            </svg>
+                        </span>
+                        <span
+                            class="font-display uppercase tracking-wide text-lg bg-gradient-to-r from-white via-violet-300 to-fuchsia-400 bg-clip-text text-transparent">MediaServer</span>
+                    </a>
+                    <p class="text-sm text-muted leading-relaxed">Твой личный кинозал: фильмы, сериалы и аниме в одном
+                        месте. Удобный просмотр на любом устройстве и синхронизация библиотеки.</p>
+                </div>
+
+                <!-- Навигация -->
+                <div>
+                    <h4 class="foot-title">Навигация</h4>
+                    <ul class="space-y-2.5 mt-4">
+                        <li><a href="/" onclick="goHome();return false;" class="foot-link">Главная</a></li>
+                        <li><a href="/catalog" onclick="openCatalog();return false;" class="foot-link">Каталог</a></li>
+                        <li><a href="/anime" onclick="openAnime();return false;" class="foot-link">Аниме и
+                                расписание</a>
+                        </li>
+                        <li><a href="/random" onclick="openRandomModal();return false;" class="foot-link">Случайный
+                                тайтл</a></li>
+                        <li><a href="/favorites" onclick="openLibrary('favorites');return false;"
+                                class="foot-link">Избранное</a></li>
+                        <li><a href="/history" onclick="openLibrary('history');return false;" class="foot-link">История
+                                просмотров</a></li>
+                        <li><a href="/profile" onclick="openProfile();return false;" class="foot-link">Профиль</a></li>
+                    </ul>
+                </div>
+
+                <!-- Жанры -->
+                <div>
+                    <h4 class="foot-title">Популярные жанры</h4>
+                    <ul class="grid grid-cols-2 gap-x-4 gap-y-2.5 mt-4">
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Фэнтези');return false;"
+                                class="foot-link">Фэнтези</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Боевик');return false;"
+                                class="foot-link">Боевик</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Комедия');return false;"
+                                class="foot-link">Комедия</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Драма');return false;"
+                                class="foot-link">Драма</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Мелодрама');return false;"
+                                class="foot-link">Мелодрама</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Фантастика');return false;"
+                                class="foot-link">Фантастика</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Триллер');return false;"
+                                class="foot-link">Триллер</a></li>
+                        <li><a href="/catalog" onclick="openCatalogWithGenre('Ужасы');return false;"
+                                class="foot-link">Ужасы</a></li>
+                    </ul>
+                </div>
+
+                <!-- Поддержка -->
+                <div>
+                    <h4 class="foot-title">Поддержка</h4>
+                    <div class="mt-4">
+                        <p class="text-xs text-faint uppercase tracking-wider">По всем вопросам</p>
+                        <a id="footEmail" class="foot-link block mt-1 font-medium"></a>
+                        <p class="text-xs text-faint uppercase tracking-wider mt-4" id="footTgLabel">Telegram</p>
+                        <a id="footTelegram" class="foot-link block mt-1 font-medium" target="_blank"
+                            rel="noopener noreferrer"></a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Копирайт + юр. ссылки -->
+            <div class="border-t border-border mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <p class="text-xs text-faint text-center md:text-left">© <span id="footYear"></span> MediaServer. Все
+                    права
+                    защищены.</p>
+                <nav class="flex flex-wrap justify-center gap-x-4 gap-y-2">
+                    <button type="button" class="foot-legal" onclick="openLegalPage('terms')">Пользовательское
+                        соглашение</button>
+                    <button type="button" class="foot-legal" onclick="openLegalPage('privacy')">Политика
+                        конфиденциальности</button>
+                    <button type="button" class="foot-legal" onclick="openLegalPage('offer')">Публичная оферта</button>
+                    <button type="button" class="foot-legal" onclick="openLegalPage('sitemap')">Карта сайта</button>
+                    <button type="button" class="foot-legal" onclick="openLegalPage('rights')">Правообладателям</button>
+                    <button type="button" class="foot-legal" onclick="openLegalPage('delete')">Удаление
+                        аккаунта</button>
+                </nav>
+            </div>
+        </div>
+    </footer>
+
+    <!-- дропдаун статуса карточки в «Моем списке» -->
+    <div id="lsStatusMenu" class="aon-dd hidden" style="position:fixed"></div>
+
+    <!-- панель дропа при перетаскивании карточки -->
+    <div id="lsDropBar" class="hidden">
+        <div class="ls-drop-grad"></div>
+        <div class="ls-drop-panel">
+            <p class="ls-drop-title">Перетащите в категорию</p>
+            <div class="ls-drop-row" id="lsDropRow">
+                <button type="button" class="ls-zone ls-zone--watching" data-zone="watching"><svg viewBox="0 0 24 24"
+                        fill="currentColor">
+                        <path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" />
+                    </svg>Смотрю</button>
+                <button type="button" class="ls-zone ls-zone--planned" data-zone="planned"><svg viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M12 6v6l4 2" />
+                        <circle cx="12" cy="12" r="10" />
+                    </svg>Запланировано</button>
+                <button type="button" class="ls-zone ls-zone--watched" data-zone="watched"><svg viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="m9 12 2 2 4-4" />
+                    </svg>Просмотрено</button>
+                <button type="button" class="ls-zone ls-zone--dropped" data-zone="dropped"><svg viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="m15 9-6 6" />
+                        <path d="m9 9 6 6" />
+                    </svg>Брошено</button>
+                <button type="button" class="ls-zone ls-zone--onhold" data-zone="onhold"><svg viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="10" x2="10" y1="15" y2="9" />
+                        <line x1="14" x2="14" y1="15" y2="9" />
+                    </svg>Отложено</button>
+                <button type="button" class="ls-zone ls-zone--unsorted" data-zone="unsorted"><svg viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+                        <path
+                            d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                    </svg>Не распределено</button>
+                <button type="button" class="ls-zone ls-zone--delete" data-zone="delete"><svg viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M10 11v6" />
+                        <path d="M14 11v6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                        <path d="M3 6h18" />
+                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    </svg>Удалить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- призрак карточки при перетаскивании -->
+    <div id="lsDragGhost" class="hidden">
+    </div>
+
+    <!-- ===================== RANDOM MODAL ===================== -->
+    <div id="randomModal" class="hidden fixed inset-0 z-[75] modal-overlay overflow-y-auto" role="dialog"
+        aria-modal="true">
+        <div class="min-h-full flex items-center justify-center p-4"
+            onclick="if(event.target===this)closeRandomModal()">
+            <div class="modal-panel w-full max-w-xl rounded-2xl relative p-5">
+                <button onclick="closeRandomModal()"
+                    class="absolute top-3 right-3 w-9 h-9 rounded-full btn-ghost flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <h2 class="font-display uppercase text-xl tracking-wide mb-4 flex items-center gap-2 pr-10">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0abfc" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path
+                            d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z" />
+                        <path d="m14 7 3 3" />
+                        <path d="M5 6v4M19 14v4M10 2v2M7 8H3M21 16h-4M11 3H9" />
+                    </svg>
+                    Что посмотреть?
+                </h2>
+                <div class="mb-4 space-y-2.5">
+                    <div class="flex flex-wrap items-center gap-1.5" id="randomTypeChips">
+                        <button data-rt="movie"
+                            class="btn-ghost text-xs font-semibold px-2.5 h-7 rounded-lg">Фильмы</button>
+                        <button data-rt="series"
+                            class="btn-ghost text-xs font-semibold px-2.5 h-7 rounded-lg">Сериалы</button>
+                        <button data-rt="anime"
+                            class="btn-ghost text-xs font-semibold px-2.5 h-7 rounded-lg">Аниме</button>
+                        <button data-rt="cartoon"
+                            class="btn-ghost text-xs font-semibold px-2.5 h-7 rounded-lg">Мульты</button>
+                        <button onclick="resetRandomTypes()"
+                            class="text-[11px] text-faint hover:text-ink px-1.5 py-1">все</button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input id="rfYear1" type="number" min="1890" max="2030" placeholder="год от"
+                            class="field-dark w-[88px] h-9 rounded-lg px-2.5 text-xs focus:outline-none">
+                        <input id="rfYear2" type="number" min="1890" max="2030" placeholder="до"
+                            class="field-dark w-[72px] h-9 rounded-lg px-2.5 text-xs focus:outline-none">
+                        <select id="rfRating" class="field-dark h-9 rounded-lg px-2 text-xs focus:outline-none">
+                            <option value="0">рейтинг любой</option>
+                            <option value="5">5+</option>
+                            <option value="6">6+</option>
+                            <option value="7">7+</option>
+                            <option value="8">8+</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="randomBody"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== REPORT MODAL ===================== -->
+    <div id="reportModal" class="hidden fixed inset-0 z-[75] modal-overlay overflow-y-auto" role="dialog"
+        aria-modal="true">
+        <div class="min-h-full flex items-center justify-center p-4"
+            onclick="if(event.target===this)closeReportModal()">
+            <div class="modal-panel w-full max-w-md rounded-2xl relative p-5">
+                <button onclick="closeReportModal()"
+                    class="absolute top-3 right-3 w-9 h-9 rounded-full btn-ghost flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <h2 class="font-display uppercase text-lg tracking-wide mb-1">Что не так?</h2>
+                <p id="reportTitle" class="text-muted text-sm mb-4"></p>
+                <div class="flex flex-col gap-2">
+                    <button onclick="submitReport('player')"
+                        class="btn-ghost h-11 rounded-xl text-sm text-left px-4">Плеер
+                        не работает / нет видео</button>
+                    <button onclick="submitReport('wrong_title')"
+                        class="btn-ghost h-11 rounded-xl text-sm text-left px-4">Открылся не тот тайтл</button>
+                    <button onclick="submitReport('wrong_data')"
+                        class="btn-ghost h-11 rounded-xl text-sm text-left px-4">Неверные данные (постер, год,
+                        описание)</button>
+                    <button onclick="submitReport('audio')"
+                        class="btn-ghost h-11 rounded-xl text-sm text-left px-4">Проблема со звуком / озвучкой</button>
+                    <button onclick="submitReport('other')"
+                        class="btn-ghost h-11 rounded-xl text-sm text-left px-4">Другое
+                        (опиши в комментарии)</button>
+                </div>
+                <textarea id="reportComment" rows="2" maxlength="500" placeholder="Комментарий (необязательно)"
+                    class="field-dark w-full rounded-xl px-3.5 py-2.5 text-sm mt-3 focus:outline-none resize-none"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== TRAILER MODAL ===================== -->
+    <div id="trailerModal" class="hidden fixed inset-0 z-[75] modal-overlay overflow-y-auto" role="dialog"
+        aria-modal="true" aria-label="Трейлер">
+        <div class="min-h-full flex items-center justify-center p-4"
+            onclick="if(event.target===this)closeTrailerModal()">
+            <div class="w-full max-w-4xl relative">
+                <button onclick="closeTrailerModal()"
+                    class="absolute -top-12 right-0 w-9 h-9 rounded-full btn-ghost flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <div class="player-frame" id="trailerFrameHost"></div>
+                <p id="trailerModalTitle" class="text-muted text-sm mt-3 text-center line-clamp-1"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== LEGAL MODAL ===================== -->
+    <div id="legalModal" class="hidden fixed inset-0 z-[75] modal-overlay overflow-y-auto" role="dialog"
+        aria-modal="true">
+        <div class="min-h-full flex items-start md:items-center justify-center p-4"
+            onclick="if(event.target===this)closeLegalModal()">
+            <div class="modal-panel w-full max-w-2xl rounded-2xl relative p-6 md:p-8 my-8">
+                <button onclick="closeLegalModal()"
+                    class="absolute top-3 right-3 w-9 h-9 rounded-full btn-ghost flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <h2 id="legalTitle" class="font-display uppercase text-xl tracking-wide pr-10 mb-5"></h2>
+                <div id="legalBody" class="space-y-3 max-h-[62vh] overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== МОДАЛЬНЫЙ ПОИСК ===================== -->
+    <div id="searchModal" class="hidden" role="dialog" aria-modal="true" aria-label="Поиск">
+        <div class="sm-backdrop" onclick="closeSearchModal()"></div>
+        <div class="sm-wrap">
+            <div class="sm-bar">
+                <span class="sm-bar-ic">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round">
+                        <path d="m21 21-4.34-4.34" />
+                        <circle cx="11" cy="11" r="8" />
+                    </svg>
+                </span>
+                <input id="smInput" type="text" autocomplete="off" placeholder="Поиск фильмов, сериалов, аниме…"
+                    aria-label="Поиск">
+                <button id="smClear" onclick="smClearInput()" class="hidden" aria-label="Очистить">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <button class="sm-esc" onclick="closeSearchModal()" aria-label="Закрыть поиск">ESC</button>
+                <div class="sm-modes" role="tablist" aria-label="Режим поиска">
+                    <button type="button" class="sm-mode is-active" data-mode="titles" data-ttip="Тайтлы" aria-label="Тайтлы">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="18" rx="2" />
+                            <path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5" />
+                        </svg>
+                    </button>
+                    <button type="button" class="sm-mode" data-mode="people" data-ttip="Люди" aria-label="Люди">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9.5" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                    </button>
+                    <button type="button" class="sm-mode" data-mode="users" data-ttip="Пользователи" aria-label="Пользователи">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+    
+            <div class="sm-panel">
+                <div id="smEmpty" class="sm-empty">
+                    <p class="sm-empty-title">Начните вводить запрос</p>
+                    <p class="sm-empty-sub">Tab — переключение режима · Стрелки — навигация · Enter — открыть · Esc —
+                        закрыть</p>
+                </div>
+                <div id="smResults"></div>
+                <div class="sm-foot">
+                    <span><kbd>↑</kbd><kbd>↓</kbd> навигация</span>
+                    <span><kbd>Enter</kbd> открыть</span>
+                    <span><kbd>Tab</kbd> режим</span>
+                    <span><kbd>Esc</kbd> закрыть</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== RATINGS MODAL ===================== -->
+    <div id="ratingsModal" class="hidden fixed inset-0 z-[75] modal-overlay overflow-y-auto" role="dialog"
+        aria-modal="true" aria-label="Оценки">
+        <div class="min-h-full flex items-center justify-center p-4"
+            onclick="if(event.target===this)closeRatingsModal()">
+            <div class="modal-panel w-full max-w-5xl rounded-2xl relative p-5">
+                <button onclick="closeRatingsModal()"
+                    class="absolute top-3 right-3 w-9 h-9 rounded-full btn-ghost flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <div class="flex items-center gap-3 mb-4 pr-10">
+                    <span class="marquee-rule" style="width:28px"></span>
+                    <h2 class="font-display uppercase text-xl tracking-wide">Все оценки</h2>
+                    <span id="ratingsModalCount" class="text-xs text-faint"></span>
+                </div>
+                <div id="ratingsModalChips" class="flex flex-wrap gap-1.5 mb-4"></div>
+                <div id="ratingsModalGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                </div>
+                <p id="ratingsModalEmpty" class="hidden text-muted text-sm py-12 text-center">В этой группе пока нет
+                    тайтлов.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== ACTORS MODAL ===================== -->
+    <div id="actorsModal" class="hidden fixed inset-0 z-[75] modal-overlay overflow-y-auto" role="dialog" aria-modal="true"
+        aria-label="Актёры">
+        <div class="min-h-full flex items-start md:items-center justify-center p-4"
+            onclick="if(event.target===this)closeActorsModal()">
+            <div class="modal-panel w-full max-w-2xl rounded-2xl relative p-5 md:p-6 my-8">
+                <button onclick="closeActorsModal()"
+                    class="absolute top-3 right-3 w-9 h-9 rounded-full btn-ghost flex items-center justify-center"
+                    aria-label="Закрыть">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"
+                        stroke-linecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+                <div class="flex items-center gap-3 mb-4 pr-10">
+                    <span class="marquee-rule" style="width:28px"></span>
+                    <h2 id="actorsModalTitle" class="font-display uppercase text-xl tracking-wide"></h2>
+                </div>
+                <div id="actorsModalBody" class="max-h-[65vh] overflow-y-auto pr-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== МОДАЛКА АККАУНТА: вход/регистрация (стиль animeon) ===================== -->
+    <div id="accountModal" class="hidden" role="dialog" aria-modal="true" aria-label="Вход и регистрация">
+        <div class="am-backdrop" onclick="closeAccountModal()"></div>
+        <div class="am-card modal-panel">
+            <!-- ЛЕВАЯ ПАНЕЛЬ: брендинг (только десктоп) -->
+            <div class="am-side">
+                <div class="am-side-deco" aria-hidden="true">
+                    <span class="am-blob am-blob--a"></span>
+                    <span class="am-blob am-blob--b"></span>
+                    <span class="am-blob am-blob--c"></span>
+                    <span class="am-quad am-quad--a"></span>
+                    <span class="am-quad am-quad--b"></span>
+                    <span class="am-dot am-dot--a"></span>
+                    <span class="am-dot am-dot--b"></span>
+                    <span class="am-diamond"></span>
+                </div>
+                <div class="am-side-top">
+                    <div class="flex items-center gap-2.5 mb-6">
+                        <span class="am-logo">
+                            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="18" rx="2" />
+                                <path d="M7 3v18M17 3v18M2 8h5M2 16h5M17 8h5M17 16h5" />
+                            </svg>
+                        </span>
+                        <span class="am-logo-text">MediaServer</span>
+                    </div>
+                    <h2 class="am-side-title" id="amSideTitle">С возвращением<br><span class="am-side-grad">в твой кинозал</span></h2>
+                    <p class="am-side-desc">Смотри фильмы, сериалы и аниме, собирай коллекцию — всё синхронизировано между
+                        устройствами.</p>
+                </div>
+                <div class="am-side-card">
+                    <div class="am-sc-head">
+                        <span class="am-sc-ic">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+                            </svg>
+                        </span>
+                        <p class="am-sc-title">Личный кинозал</p>
+                        <span class="am-sc-badge">БЕСПЛАТНО</span>
+                    </div>
+                    <div class="am-sc-rows">
+                        <div class="am-sc-row">
+                            <span class="am-sc-ric"><svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                                    <polyline points="2 17 12 22 22 17" />
+                                    <polyline points="2 12 12 17 22 12" />
+                                </svg></span>
+                            <span>Библиотека и история на всех устройствах</span>
+                        </div>
+                        <div class="am-sc-row">
+                            <span class="am-sc-ric"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.7 7-6.3-3.9-6.3 3.9 1.7-7-5.4-4.7 7.1-.6z" />
+                                </svg></span>
+                            <span>Оценки и статусы просмотра</span>
+                        </div>
+                        <div class="am-sc-row">
+                            <span class="am-sc-ric"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="6 3 20 12 6 21 6 3" />
+                                </svg></span>
+                            <span>Продолжение просмотра с любой секунды</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ПРАВАЯ ПАНЕЛЬ: форма -->
+            <div class="am-main">
+                <button type="button" class="am-close" onclick="closeAccountModal()" aria-label="Закрыть">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                        stroke-linecap="round">
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                    </svg>
+                </button>
+                <div class="am-form-area">
+                    <div id="accountAuth" class="am-auth">
+                        <!-- ===== ВХОД ===== -->
+                        <div class="am-head" id="amLoginHead">
+                            <h3 class="am-title">Вход в аккаунт</h3>
+                            <p class="am-sub">Введи свои данные для доступа</p>
+                        </div>
+                    
+                        <div class="am-oauth hidden" id="amOauth">
+                            <div class="am-oauth-btn" aria-hidden="true">
+                                <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path
+                                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                                        fill="#4285F4"></path>
+                                    <path
+                                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                                        fill="#34A853"></path>
+                                    <path
+                                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                                        fill="#FBBC05"></path>
+                                    <path
+                                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                                        fill="#EA4335"></path>
+                                </svg>
+                                <span>Войти через Google</span>
+                            </div>
+                            <div id="gGisHost" class="am-oauth-gis"></div>
+                        </div>
+                        <div id="amGcode" class="am-gcode hidden">
+                            <p class="am-gcode-q">Сайт в закрытом режиме — введи код доступа:</p>
+                            <div class="am-gcode-row">
+                                <input id="amGcodeInput" class="am-input" placeholder="код доступа" autocomplete="off"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();continueGoogleWithCode();}">
+                                <button type="button" class="am-gcode-btn" onclick="continueGoogleWithCode()">Продолжить</button>
+                            </div>
+                        </div>
+                        <div class="am-divider hidden" id="amOauthDivider"><span>или</span></div>
+                    
+                        <form onsubmit="submitAccount(event)" class="am-form" id="amLoginForm">
+                            <div class="am-field">
+                                <label class="am-label" for="accountLogin">Email или логин</label>
+                                <div class="am-input-wrap">
+                                    <svg class="am-input-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                        <circle cx="12" cy="7" r="4" />
+                                    </svg>
+                                    <input id="accountLogin" class="am-input" required autocomplete="username"
+                                        placeholder="name@example.com или ник">
+                                </div>
+                            </div>
+                            <div class="am-field">
+                                <label class="am-label" for="accountPassword">Пароль</label>
+                                <div class="am-input-wrap">
+                                    <svg class="am-input-ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                    <input id="accountPassword" class="am-input am-input--pass" required type="password"
+                                        autocomplete="current-password" placeholder="••••••••">
+                                    <button type="button" class="am-eye" onclick="toggleAccountPassword()" aria-label="Показать пароль">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round">
+                                            <path
+                                                d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+                                            <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <p id="accountError" class="am-error hidden"></p>
+                            <button id="accountSubmit" type="submit" class="am-submit">
+                                <span id="accountSubmitText">Войти</span>
+                                <span id="accountSubmitLoader" class="hidden loader-spin loader-spin-sm"></span>
+                            </button>
+                        </form>
+                    
+                        <!-- ===== РЕГИСТРАЦИЯ: мастер ===== -->
+                        <div id="amRegWizard" class="hidden">
+                            <div class="am-reg-top">
+                                <button type="button" class="am-reg-back" id="amRegBack" onclick="amRegBack()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m15 18-6-6 6-6" />
+                                    </svg>
+                                    Назад
+                                </button>
+                                <span class="am-reg-count" id="amRegStepNum">Шаг 1 из 4</span>
+                            </div>
+                            <h3 class="am-title" id="amRegTitle">Начнём с Email</h3>
+                    
+                            <!-- Шаг 1: email -->
+                            <div class="am-step" id="amRegS1">
+                                <div class="am-field">
+                                    <label class="am-label" for="amRegEmail">Твой Email</label>
+                                    <div class="am-input-wrap">
+                                        <svg class="am-input-ic" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7" />
+                                            <rect x="2" y="4" width="20" height="16" rx="2" />
+                                        </svg>
+                                        <input id="amRegEmail" class="am-input" type="email" maxlength="254" autocomplete="email"
+                                            placeholder="name@example.com"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();amRegNext();}">
+                                    </div>
+                                </div>
+                                <p class="am-error hidden" id="amRegErr1"></p>
+                                <button type="button" class="am-submit" onclick="amRegNext()">Продолжить
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M5 12h14" />
+                                        <path d="m12 5 7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                    
+                            <!-- Шаг 2: никнейм -->
+                            <div class="am-step hidden" id="amRegS2">
+                                <div class="am-field">
+                                    <label class="am-label" for="amRegNick">Никнейм</label>
+                                    <div class="am-input-wrap">
+                                        <svg class="am-input-ic" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                                            <circle cx="12" cy="7" r="4" />
+                                        </svg>
+                                        <input id="amRegNick" class="am-input" maxlength="32" autocomplete="nickname"
+                                            placeholder="Nagibator2000"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();amRegNext();}">
+                                    </div>
+                                    <p class="am-hint">Буквы (латиница и кириллица), цифры, «_» и «-» · 3–32 символа</p>
+                                </div>
+                                <p class="am-error hidden" id="amRegErr2"></p>
+                                <button type="button" class="am-submit" onclick="amRegNext()">Продолжить
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M5 12h14" />
+                                        <path d="m12 5 7 7-7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                    
+                            <!-- Шаг 3: пароль -->
+                            <div class="am-step hidden" id="amRegS3">
+                                <div class="am-field">
+                                    <label class="am-label" for="amRegPass">Пароль</label>
+                                    <div class="am-input-wrap">
+                                        <svg class="am-input-ic" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                        </svg>
+                                        <input id="amRegPass" class="am-input am-input--pass" type="password" maxlength="72"
+                                            autocomplete="new-password" placeholder="••••••••" oninput="amPassCheck()"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();amRegFinish();}">
+                                        <button type="button" class="am-eye" onclick="togglePassById('amRegPass')"
+                                            aria-label="Показать пароль">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="2" stroke-linecap="round">
+                                                <path
+                                                    d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+                                                <circle cx="12" cy="12" r="3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="am-field">
+                                    <label class="am-label" for="amRegPass2">Повтори пароль</label>
+                                    <div class="am-input-wrap">
+                                        <svg class="am-input-ic" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path
+                                                d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+                                            <path d="m9 12 2 2 4-4" />
+                                        </svg>
+                                        <input id="amRegPass2" class="am-input am-input--pass" type="password" maxlength="72"
+                                            autocomplete="new-password" placeholder="••••••••" oninput="amPassCheck()"
+                                            onkeydown="if(event.key==='Enter'){event.preventDefault();amRegFinish();}">
+                                        <button type="button" class="am-eye" onclick="togglePassById('amRegPass2')"
+                                            aria-label="Показать пароль">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                                stroke-width="2" stroke-linecap="round">
+                                                <path
+                                                    d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+                                                <circle cx="12" cy="12" r="3" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="am-passreq">
+                                    <p class="am-pr-title">Требования безопасности</p>
+                                    <div class="apr" id="aprLen"><span class="dot"></span><span>Минимум 8 символов</span></div>
+                                    <div class="apr" id="aprUp"><span class="dot"></span><span>Заглавная буква (A–Z)</span></div>
+                                    <div class="apr" id="aprLow"><span class="dot"></span><span>Строчная буква (a–z)</span></div>
+                                    <div class="apr" id="aprDig"><span class="dot"></span><span>Цифра (0–9)</span></div>
+                                    <div class="apr" id="aprMatch"><span class="dot"></span><span>Пароли совпадают</span></div>
+                                </div>
+                                <p class="am-error hidden" id="amRegErr3"></p>
+                                <button type="button" class="am-submit" id="amRegSubmit" onclick="amRegFinish()">Создать аккаунт</button>
+                            </div>
+                    
+                            <!-- Шаг 4: готово -->
+                            <div class="am-step hidden" id="amRegS4">
+                                <div class="am-done">
+                                    <span class="am-done-ic">
+                                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                                            stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M20 6 9 17l-5-5" />
+                                        </svg>
+                                    </span>
+                                    <h3 class="am-done-title">Аккаунт создан!</h3>
+                                    <p class="am-done-sub">Добро пожаловать, <b id="amDoneNick"></b> 👋</p>
+                                </div>
+                            </div>
+                        </div>
+                    
+                        <p class="am-switch"><span id="amSwitchQ">Впервые здесь?</span> <button type="button" id="amSwitchBtn"
+                                class="am-switch-btn" onclick="setAccountMode(accountMode === 'login' ? 'register' : 'login')">Создать
+                                аккаунт</button></p>
+                    </div>
+                    <!-- вошедший пользователь -->
+                    <div id="accountLoggedIn" class="am-logged hidden">
+                        <div class="am-head">
+                            <h3 class="am-title">Аккаунт</h3>
+                            <p class="am-sub">Синхронизация активна</p>
+                        </div>
+                        <div class="am-logged-user">
+                            <span id="accountBigAvatar" class="am-big-ava"></span>
+                            <div class="min-w-0">
+                                <p class="am-logged-name" id="accountUsername"></p>
+                                <p class="am-logged-sub"><span class="am-dotok"></span>В сети</p>
+                            </div>
+                        </div>
+                        <div class="am-logged-stats">
+                            <div class="am-lstat"><span class="k">в избранном</span><span class="v"
+                                    id="statFavorites">0</span></div>
+                            <div class="am-lstat"><span class="k">в истории</span><span class="v" id="statHistory">0</span>
+                            </div>
+                        </div>
+                        <button type="button" class="am-submit"
+                            onclick="closeAccountModal(); confirmLogout()">Выйти</button>
+                        <button type="button" class="am-linkdanger" onclick="confirmDeleteAccount()">Удалить
+                            аккаунт</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ===================== ПОДТВЕРЖДЕНИЕ ВЫХОДА (стиль animeon) ===================== -->
+    <div id="logoutDialog" class="hidden" role="alertdialog" aria-modal="true" aria-labelledby="logoutDialogTitle"
+        aria-describedby="logoutDialogDesc">
+        <div class="lgd-backdrop" onclick="closeLogoutDialog()"></div>
+        <div class="lgd-card">
+            <div class="lgd-head">
+                <div class="lgd-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m16 17 5-5-5-5" />
+                        <path d="M21 12H9" />
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                    </svg>
+                </div>
+                <h2 id="logoutDialogTitle" class="lgd-title">Вы точно хотите выйти?</h2>
+                <p id="logoutDialogDesc" class="lgd-desc">Чтобы продолжить смотреть и сохранять прогресс, нужно будет войти
+                    заново.</p>
+            </div>
+            <div class="lgd-foot">
+                <button type="button" class="lgd-cancel" onclick="closeLogoutDialog()">Отмена</button>
+                <button type="button" class="lgd-confirm" onclick="logoutAccount()">Выйти</button>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/app.__JS__.js"></script>
+</body>
+
+</html>
